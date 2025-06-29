@@ -12,6 +12,9 @@ interface UserData {
   is_lifetime_access: boolean
   days_remaining: number | null
   is_expired: boolean
+  phone?: string | null
+  company?: string | null
+  avatar_url?: string | null
 }
 
 interface NewUserState {
@@ -20,18 +23,25 @@ interface NewUserState {
   error: string | null
   impersonatedUser: UserData | null
   originalUser: any | null
+  currentUserProfile: UserData | null
   
   // User management
   fetchUsers: () => Promise<void>
   createUser: (email: string, password: string, fullName: string, role: string) => Promise<void>
   updateUser: (userId: string, updates: Partial<UserData>) => Promise<void>
   deleteUser: (userId: string) => Promise<void>
+  changeUserRole: (userId: string, roleId: string) => Promise<void>
   changeUserPassword: (userId: string, newPassword: string) => Promise<void>
+  canDeleteUser: (userId: string) => Promise<boolean>
+  
+  // Profile management
+  fetchCurrentUserProfile: () => Promise<void>
+  updateCurrentUserProfile: (updates: Partial<UserData>) => Promise<void>
+  ensureProfileExists: () => Promise<void>
   
   // Permission checks
   isSuperAdmin: () => Promise<boolean>
   isAdmin: () => Promise<boolean>
-  canDeleteUser: (userId: string) => Promise<boolean>
   
   // Impersonation
   startImpersonation: (userId: string) => Promise<void>
@@ -46,6 +56,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
   error: null,
   impersonatedUser: null,
   originalUser: null,
+  currentUserProfile: null,
 
   clearError: () => set({ error: null }),
 
@@ -89,6 +100,114 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
     }
   },
 
+  ensureProfileExists: async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Nie jesteś zalogowany')
+      }
+      
+      console.log('🔄 Ensuring profile exists for user:', user.id)
+      
+      const { error } = await supabase
+        .rpc('create_missing_profile_for_current_user')
+      
+      if (error) {
+        console.error('❌ Error ensuring profile exists:', error)
+        throw error
+      }
+      
+      console.log('✅ Profile ensured for user')
+      
+    } catch (error: any) {
+      console.error('❌ Error in ensureProfileExists:', error)
+      throw error
+    }
+  },
+
+  fetchCurrentUserProfile: async () => {
+    try {
+      set({ loading: true, error: null })
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Nie jesteś zalogowany')
+      }
+      
+      console.log('🔄 Fetching current user profile for:', user.id)
+      
+      // Najpierw upewnij się, że profil istnieje
+      await get().ensureProfileExists()
+      
+      const { data, error } = await supabase
+        .rpc('get_all_users_with_roles')
+      
+      if (error) {
+        console.error('❌ Error fetching user profile:', error)
+        throw error
+      }
+      
+      const userProfile = data?.find((u: UserData) => u.id === user.id)
+      
+      if (!userProfile) {
+        throw new Error('Nie znaleziono profilu użytkownika')
+      }
+      
+      console.log('✅ User profile fetched successfully:', userProfile)
+      set({ currentUserProfile: userProfile })
+      
+    } catch (error: any) {
+      console.error('❌ Error in fetchCurrentUserProfile:', error)
+      set({ error: error.message })
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  updateCurrentUserProfile: async (updates: Partial<UserData>) => {
+    try {
+      set({ loading: true, error: null })
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('Nie jesteś zalogowany')
+      }
+      
+      console.log('🔄 Updating current user profile:', updates)
+      
+      // Najpierw upewnij się, że profil istnieje
+      await get().ensureProfileExists()
+      
+      // Użyj funkcji bazodanowej do aktualizacji profilu
+      const { error } = await supabase
+        .rpc('update_user_profile_and_account', {
+          target_user_id: user.id,
+          new_full_name: updates.full_name || null,
+          new_phone: updates.phone || null,
+          new_company: updates.company || null,
+          new_account_expires_at: updates.is_lifetime_access ? null : updates.account_expires_at || null,
+          new_is_lifetime_access: updates.is_lifetime_access || null
+        })
+      
+      if (error) {
+        console.error('❌ Error updating user profile:', error)
+        throw error
+      }
+      
+      console.log('✅ User profile updated successfully')
+      
+      // Odśwież profil użytkownika
+      await get().fetchCurrentUserProfile()
+      
+    } catch (error: any) {
+      console.error('❌ Error updating user profile:', error)
+      set({ error: error.message })
+      throw error
+    } finally {
+      set({ loading: false })
+    }
+  },
+
   fetchUsers: async () => {
     try {
       set({ loading: true, error: null })
@@ -119,9 +238,6 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       set({ loading: true, error: null })
       
       console.log('🚀 Starting user creation process...')
-      console.log('📧 Email:', email)
-      console.log('👤 Full Name:', fullName)
-      console.log('🔐 Role:', role)
       
       // Sprawdź czy użytkownik już istnieje
       const { data: userExists, error: checkError } = await supabase
@@ -136,9 +252,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         throw new Error('Użytkownik z tym emailem już istnieje')
       }
       
-      console.log('✅ User does not exist, proceeding with creation...')
-      
-      // Utwórz użytkownika używając funkcji bazodanowej
+      // Utwórz użytkownika
       const { data: userId, error: createError } = await supabase
         .rpc('create_user_with_profile_and_password', {
           user_email: email.trim().toLowerCase(),
@@ -157,8 +271,6 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       // Odśwież listę użytkowników
       await get().fetchUsers()
       
-      console.log('🎉 User creation process completed successfully!')
-      
     } catch (error: any) {
       console.error('❌ Error creating user:', error)
       set({ error: error.message })
@@ -172,13 +284,14 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
     try {
       set({ loading: true, error: null })
       
-      console.log('🔄 Updating user...')
+      console.log('🔄 Updating user with new function...')
       
-      // Użyj funkcji bazodanowej do aktualizacji
       const { error } = await supabase
         .rpc('update_user_profile_and_account', {
           target_user_id: userId,
           new_full_name: updates.full_name || null,
+          new_phone: updates.phone || null,
+          new_company: updates.company || null,
           new_account_expires_at: updates.is_lifetime_access ? null : updates.account_expires_at || null,
           new_is_lifetime_access: updates.is_lifetime_access || null
         })
@@ -207,7 +320,6 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('🔄 Changing user password...')
       
-      // Użyj funkcji bazodanowej do zmiany hasła
       const { error } = await supabase
         .rpc('admin_change_user_password', {
           target_user_id: userId,
@@ -232,31 +344,17 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
 
   canDeleteUser: async (userId: string) => {
     try {
-      console.log('🔍 Checking delete permissions for user:', userId)
-      
       const { data, error } = await supabase
         .rpc('can_delete_user', { target_user_id: userId })
       
       if (error) {
         console.error('❌ Error checking delete permission:', error)
-        // Fallback: sprawdź czy to Super Admin
-        const isSuperAdmin = await get().isSuperAdmin()
-        return isSuperAdmin
+        return false
       }
       
-      console.log('✅ Delete permission result:', data)
       return data || false
     } catch (error: any) {
       console.error('❌ Error checking delete permission:', error)
-      
-      // Fallback: sprawdź czy aktualny użytkownik to Super Admin
-      try {
-        const isSuperAdmin = await get().isSuperAdmin()
-        return isSuperAdmin
-      } catch (fallbackError) {
-        console.error('❌ Fallback check failed:', fallbackError)
-      }
-      
       return false
     }
   },
@@ -267,17 +365,12 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('🗑️ Starting user deletion process for:', userId)
       
-      // Sprawdź czy można usunąć użytkownika
       const canDelete = await get().canDeleteUser(userId)
-      console.log('🔍 Can delete user:', canDelete)
       
       if (!canDelete) {
         throw new Error('Brak uprawnień do usuwania tego użytkownika')
       }
       
-      console.log('✅ Delete permission confirmed, proceeding with deletion...')
-      
-      // Wywołaj funkcję bazodanową do usuwania
       const { error: deleteError } = await supabase
         .rpc('admin_delete_user', { target_user_id: userId })
       
@@ -291,10 +384,44 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       // Odśwież listę użytkowników
       await get().fetchUsers()
       
-      console.log('🎉 User deletion completed successfully!')
-      
     } catch (error: any) {
       console.error('❌ Error deleting user:', error)
+      set({ error: error.message })
+      throw error
+    } finally {
+      set({ loading: false })
+    }
+  },
+
+  changeUserRole: async (userId: string, roleId: string) => {
+    try {
+      set({ loading: true, error: null })
+      
+      // Dezaktywuj obecne role
+      const { error: deleteError } = await supabase
+        .from('user_roles')
+        .update({ is_active: false })
+        .eq('user_id', userId)
+      
+      if (deleteError) throw deleteError
+      
+      // Dodaj nową rolę
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert([{
+          user_id: userId,
+          role_id: roleId,
+          assigned_by: (await supabase.auth.getUser()).data.user?.id,
+          is_active: true,
+          assigned_at: new Date().toISOString()
+        }])
+      
+      if (insertError) throw insertError
+      
+      // Odśwież listę użytkowników
+      await get().fetchUsers()
+    } catch (error: any) {
+      console.error('Error changing user role:', error)
       set({ error: error.message })
       throw error
     } finally {
@@ -306,7 +433,6 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
     try {
       set({ loading: true, error: null })
       
-      // Pobierz dane użytkownika do podglądu
       const { data, error } = await supabase
         .rpc('get_all_users_with_roles')
       
@@ -317,7 +443,6 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         throw new Error('Nie znaleziono użytkownika')
       }
       
-      // Zapisz obecnego użytkownika i rozpocznij podgląd
       const { data: { user: currentUser } } = await supabase.auth.getUser()
       
       set({ 

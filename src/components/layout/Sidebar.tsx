@@ -4,6 +4,7 @@ import {
   BarChart3, 
   Zap, 
   Filter, 
+  Puzzle, 
   FileText, 
   Settings,
   Users
@@ -14,6 +15,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Przepływy', href: '/flows', icon: Zap },
   { name: 'Lejki', href: '/funnels', icon: Filter },
+  { name: 'Integracje', href: '/integrations', icon: Puzzle },
   { name: 'Szablony', href: '/templates', icon: FileText },
   { name: 'Analityka', href: '/analytics', icon: BarChart3 },
   { name: 'Ustawienia', href: '/settings', icon: Settings },
