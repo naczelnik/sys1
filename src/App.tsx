@@ -1,17 +1,16 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from './store/authStore'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { useEffect } from 'react'
+import { useAuthStore } from './store/authStore'
 import Layout from './components/layout/Layout'
-import LoginPage from './modules/auth/pages/LoginPage'
-import RegisterPage from './modules/auth/pages/RegisterPage'
-import DashboardPage from './modules/dashboard/pages/DashboardPage'
-import FlowsPage from './modules/flows/pages/FlowsPage'
-import FunnelsPage from './modules/funnels/pages/FunnelsPage'
-import IntegrationsPage from './modules/integrations/pages/IntegrationsPage'
-import AnalyticsPage from './modules/analytics/pages/AnalyticsPage'
-import TemplatesPage from './modules/templates/pages/TemplatesPage'
-import SettingsPage from './modules/settings/pages/SettingsPage'
-import UsersPage from './modules/users/pages/UsersPage'
+import Dashboard from './pages/Dashboard'
+import Flows from './pages/Flows'
+import Funnels from './pages/Funnels'
+import Integrations from './pages/Integrations'
+import Templates from './pages/Templates'
+import Analytics from './pages/Analytics'
+import Settings from './pages/Settings'
+import Login from './pages/Login'
+import NewUsersPage from './modules/users/pages/NewUsersPage'
 
 function App() {
   const { user, loading, initialize } = useAuthStore()
@@ -20,37 +19,31 @@ function App() {
     initialize()
   }, [initialize])
 
-  // Pokazuj preloader tylko podczas inicjalizacji, nie po wylogowaniu
-  if (loading && user === null && !window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-dark flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-mint-500"></div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
       </div>
     )
+  }
+
+  if (!user) {
+    return <Login />
   }
 
   return (
     <Router>
       <Routes>
-        {!user ? (
-          <>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </>
-        ) : (
-          <Route path="/" element={<Layout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="flows" element={<FlowsPage />} />
-            <Route path="funnels" element={<FunnelsPage />} />
-            <Route path="integrations" element={<IntegrationsPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="templates" element={<TemplatesPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        )}
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="flows" element={<Flows />} />
+          <Route path="funnels" element={<Funnels />} />
+          <Route path="integrations" element={<Integrations />} />
+          <Route path="templates" element={<Templates />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="users" element={<NewUsersPage />} />
+        </Route>
       </Routes>
     </Router>
   )

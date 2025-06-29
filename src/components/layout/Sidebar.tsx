@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { 
   BarChart3, 
@@ -25,21 +25,6 @@ const navigation = [
 export default function Sidebar() {
   const location = useLocation()
   const { user, isSuperAdmin } = useAuthStore()
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-
-  useEffect(() => {
-    // Debug info
-    console.log('🔍 Sidebar Debug Info:')
-    console.log('User:', user)
-    console.log('Is Super Admin:', isSuperAdmin())
-    console.log('User email:', user?.email)
-    
-    setDebugInfo({
-      user: user,
-      isSuperAdmin: isSuperAdmin(),
-      email: user?.email
-    })
-  }, [user, isSuperAdmin])
 
   const isUserSuperAdmin = isSuperAdmin()
 
@@ -78,13 +63,6 @@ export default function Sidebar() {
               )
             })}
             
-            {/* Debug info - temporary */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="px-2 py-2 text-xs text-gray-500">
-                Debug: {user?.email} | Admin: {isUserSuperAdmin ? 'YES' : 'NO'}
-              </div>
-            )}
-            
             {/* Admin Section */}
             {isUserSuperAdmin && (
               <>
@@ -107,32 +85,6 @@ export default function Sidebar() {
                     } mr-3 flex-shrink-0 h-5 w-5 transition-colors`} 
                   />
                   Użytkownicy
-                </Link>
-              </>
-            )}
-            
-            {/* Force show for testing - remove after confirmation */}
-            {user?.email === 'naczelnik@gmail.com' && !isUserSuperAdmin && (
-              <>
-                <div className="pt-6">
-                  <div className="px-2 text-xs font-semibold text-red-400 uppercase tracking-wider">
-                    Test - Administracja
-                  </div>
-                </div>
-                <Link
-                  to="/users"
-                  className={`${
-                    location.pathname === '/users'
-                      ? 'bg-gray-800 text-white'
-                      : 'text-red-300 hover:bg-red-700 hover:text-white'
-                  } group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors`}
-                >
-                  <Users 
-                    className={`${
-                      location.pathname === '/users' ? 'text-white' : 'text-red-400 group-hover:text-white'
-                    } mr-3 flex-shrink-0 h-5 w-5 transition-colors`} 
-                  />
-                  Użytkownicy (TEST)
                 </Link>
               </>
             )}

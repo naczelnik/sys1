@@ -30,21 +30,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   isSuperAdmin: () => {
     const { user } = get()
-    return user?.email === 'naczelnik@gmail.com'
+    console.log('🔍 Checking Super Admin status for:', user?.email)
+    const isSuper = user?.email === 'naczelnik@gmail.com'
+    console.log('✅ Is Super Admin:', isSuper)
+    return isSuper
   },
 
   isAdmin: () => {
     const { user } = get()
-    return user?.email === 'naczelnik@gmail.com'
+    console.log('🔍 Checking Admin status for:', user?.email)
+    const isAdminUser = user?.email === 'naczelnik@gmail.com'
+    console.log('✅ Is Admin:', isAdminUser)
+    return isAdminUser
   },
 
   initialize: async () => {
     try {
       set({ loading: true })
       
+      console.log('🔄 Initializing auth...')
+      
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
+        console.log('✅ User found:', user.email)
         set({
           user: {
             id: user.id,
@@ -54,10 +63,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           loading: false
         })
       } else {
+        console.log('❌ No user found')
         set({ user: null, loading: false })
       }
     } catch (error: any) {
-      console.error('Auth initialization error:', error)
+      console.error('❌ Auth initialization error:', error)
       set({ user: null, loading: false })
     }
   },

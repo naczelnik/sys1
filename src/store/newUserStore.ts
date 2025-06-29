@@ -26,17 +26,16 @@ interface NewUserState {
   createUser: (email: string, password: string, fullName: string, role: string) => Promise<void>
   updateUser: (userId: string, updates: Partial<UserData>) => Promise<void>
   deleteUser: (userId: string) => Promise<void>
-  changeUserRole: (userId: string, roleId: string) => Promise<void>
   changeUserPassword: (userId: string, newPassword: string) => Promise<void>
+  
+  // Permission checks
+  isSuperAdmin: () => Promise<boolean>
+  isAdmin: () => Promise<boolean>
   canDeleteUser: (userId: string) => Promise<boolean>
   
   // Impersonation
   startImpersonation: (userId: string) => Promise<void>
   stopImpersonation: () => Promise<void>
-  
-  // Permission checks
-  isSuperAdmin: () => Promise<boolean>
-  isAdmin: () => Promise<boolean>
   
   clearError: () => void
 }
@@ -59,15 +58,14 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         .rpc('is_super_admin', { user_uuid: user.id })
       
       if (error) {
-        console.error('Error checking super admin:', error)
-        return user.email === 'naczelnik@gmail.com'
+        console.error('Error checking super admin status:', error)
+        return false
       }
       
       return data || false
     } catch (error) {
       console.error('Error in isSuperAdmin:', error)
-      const { data: { user } } = await supabase.auth.getUser()
-      return user?.email === 'naczelnik@gmail.com'
+      return false
     }
   },
 
@@ -80,15 +78,14 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         .rpc('is_admin', { user_uuid: user.id })
       
       if (error) {
-        console.error('Error checking admin:', error)
-        return user.email === 'naczelnik@gmail.com'
+        console.error('Error checking admin status:', error)
+        return false
       }
       
       return data || false
     } catch (error) {
       console.error('Error in isAdmin:', error)
-      const { data: { user } } = await supabase.auth.getUser()
-      return user?.email === 'naczelnik@gmail.com'
+      return false
     }
   },
 
@@ -122,6 +119,9 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       set({ loading: true, error: null })
       
       console.log('🚀 Starting user creation process...')
+      console.log('📧 Email:', email)
+      console.log('👤 Full Name:', fullName)
+      console.log('🔐 Role:', role)
       
       // Sprawdź czy użytkownik już istnieje
       const { data: userExists, error: checkError } = await supabase
@@ -136,7 +136,9 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         throw new Error('Użytkownik z tym emailem już istnieje')
       }
       
-      // Utwórz użytkownika
+      console.log('✅ User does not exist, proceeding with creation...')
+      
+      // Utwórz użytkownika używając funkcji bazodanowej
       const { data: userId, error: createError } = await supabase
         .rpc('create_user_with_profile_and_password', {
           user_email: email.trim().toLowerCase(),
@@ -155,6 +157,8 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       // Odśwież listę użytkowników
       await get().fetchUsers()
       
+      console.log('🎉 User creation process completed successfully!')
+      
     } catch (error: any) {
       console.error('❌ Error creating user:', error)
       set({ error: error.message })
@@ -170,6 +174,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('🔄 Updating user...')
       
+      // Użyj funkcji bazodanowej do aktualizacji
       const { error } = await supabase
         .rpc('update_user_profile_and_account', {
           target_user_id: userId,
@@ -185,6 +190,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('✅ User updated successfully')
       
+      // Odśwież listę użytkowników
       await get().fetchUsers()
     } catch (error: any) {
       console.error('❌ Error updating user:', error)
@@ -201,6 +207,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('🔄 Changing user password...')
       
+      // Użyj funkcji bazodanowej do zmiany hasła
       const { error } = await supabase
         .rpc('admin_change_user_password', {
           target_user_id: userId,
@@ -232,19 +239,24 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       if (error) {
         console.error('❌ Error checking delete permission:', error)
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: isSuperAdmin } = await supabase
-            .rpc('is_super_admin', { user_uuid: user.id })
-          
-          return isSuperAdmin || false
-        }
-        return false
+        // Fallback: sprawdź czy to Super Admin
+        const isSuperAdmin = await get().isSuperAdmin()
+        return isSuperAdmin
       }
       
+      console.log('✅ Delete permission result:', data)
       return data || false
     } catch (error: any) {
       console.error('❌ Error checking delete permission:', error)
+      
+      // Fallback: sprawdź czy aktualny użytkownik to Super Admin
+      try {
+        const isSuperAdmin = await get().isSuperAdmin()
+        return isSuperAdmin
+      } catch (fallbackError) {
+        console.error('❌ Fallback check failed:', fallbackError)
+      }
+      
       return false
     }
   },
@@ -255,12 +267,17 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('🗑️ Starting user deletion process for:', userId)
       
+      // Sprawdź czy można usunąć użytkownika
       const canDelete = await get().canDeleteUser(userId)
+      console.log('🔍 Can delete user:', canDelete)
       
       if (!canDelete) {
         throw new Error('Brak uprawnień do usuwania tego użytkownika')
       }
       
+      console.log('✅ Delete permission confirmed, proceeding with deletion...')
+      
+      // Wywołaj funkcję bazodanową do usuwania
       const { error: deleteError } = await supabase
         .rpc('admin_delete_user', { target_user_id: userId })
       
@@ -271,43 +288,13 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
       
       console.log('✅ User deleted successfully')
       
+      // Odśwież listę użytkowników
       await get().fetchUsers()
+      
+      console.log('🎉 User deletion completed successfully!')
       
     } catch (error: any) {
       console.error('❌ Error deleting user:', error)
-      set({ error: error.message })
-      throw error
-    } finally {
-      set({ loading: false })
-    }
-  },
-
-  changeUserRole: async (userId: string, roleId: string) => {
-    try {
-      set({ loading: true, error: null })
-      
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .update({ is_active: false })
-        .eq('user_id', userId)
-      
-      if (deleteError) throw deleteError
-      
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert([{
-          user_id: userId,
-          role_id: roleId,
-          assigned_by: (await supabase.auth.getUser()).data.user?.id,
-          is_active: true,
-          assigned_at: new Date().toISOString()
-        }])
-      
-      if (insertError) throw insertError
-      
-      await get().fetchUsers()
-    } catch (error: any) {
-      console.error('Error changing user role:', error)
       set({ error: error.message })
       throw error
     } finally {
@@ -319,6 +306,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
     try {
       set({ loading: true, error: null })
       
+      // Pobierz dane użytkownika do podglądu
       const { data, error } = await supabase
         .rpc('get_all_users_with_roles')
       
@@ -329,6 +317,7 @@ export const useNewUserStore = create<NewUserState>((set, get) => ({
         throw new Error('Nie znaleziono użytkownika')
       }
       
+      // Zapisz obecnego użytkownika i rozpocznij podgląd
       const { data: { user: currentUser } } = await supabase.auth.getUser()
       
       set({ 

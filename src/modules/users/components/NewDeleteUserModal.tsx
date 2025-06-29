@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Trash2, AlertTriangle, CheckCircle } from 'lucide-react'
+import { X, Trash2, AlertTriangle } from 'lucide-react'
 import { useNewUserStore } from '@/store/newUserStore'
 
 interface NewDeleteUserModalProps {
@@ -12,153 +12,104 @@ export default function NewDeleteUserModal({ user, onClose, onSuccess }: NewDele
   const { deleteUser, loading } = useNewUserStore()
   const [confirmText, setConfirmText] = useState('')
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
 
-  const expectedText = `USUŃ ${user.email}`
-  const isConfirmValid = confirmText === expectedText
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess(false)
-
-    if (!isConfirmValid) {
-      setError('Nieprawidłowy tekst potwierdzenia')
+  const handleDelete = async () => {
+    if (confirmText !== 'USUŃ') {
+      setError('Wpisz "USUŃ" aby potwierdzić')
       return
     }
 
     try {
       await deleteUser(user.id)
-      
-      setSuccess(true)
-      
-      setTimeout(() => {
-        onSuccess()
-        onClose()
-      }, 1500)
-      
+      onSuccess()
     } catch (error: any) {
-      setError(error.message || 'Błąd podczas usuwania użytkownika')
+      setError(error.message)
     }
   }
 
-  if (success) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-gray-800/90 backdrop-blur-sm border border-gray-700 rounded-xl p-6 w-full max-w-md text-center">
-          <div className="mb-6">
-            <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-white mb-2">Użytkownik usunięty</h2>
-            <p className="text-gray-300">
-              Użytkownik <strong>{user.full_name || user.email}</strong> został usunięty z systemu.
-            </p>
-          </div>
-          
-          <div className="animate-pulse">
-            <div className="h-1 bg-green-400 rounded-full"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800/90 backdrop-blur-sm border border-red-500/30 rounded-xl p-6 w-full max-w-md">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md mx-4 border border-gray-700">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-red-400 flex items-center gap-2">
-            <Trash2 className="w-6 h-6" />
-            Usuń użytkownika
-          </h2>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Usuń użytkownika</h2>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            disabled={loading}
+            className="text-gray-400 hover:text-white transition-colors"
           >
-            <X className="w-5 h-5 text-gray-400" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="mb-6">
-          <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-lg mb-4">
-            <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="text-red-400 font-medium mb-1">Uwaga! Ta akcja jest nieodwracalna</h3>
-              <p className="text-red-300 text-sm">
-                Usunięcie użytkownika spowoduje trwałe usunięcie wszystkich jego danych z systemu.
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <span className="text-sm text-gray-400">Email:</span>
-              <p className="text-white font-medium">{user.email}</p>
+        {/* User Info */}
+        <div className="mb-6 p-4 bg-gray-700/50 rounded-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-mint-500 to-mint-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-medium text-sm">
+                {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.email.charAt(0).toUpperCase()}
+              </span>
             </div>
             <div>
-              <span className="text-sm text-gray-400">Imię i nazwisko:</span>
-              <p className="text-white font-medium">{user.full_name || 'Brak'}</p>
-            </div>
-            <div>
-              <span className="text-sm text-gray-400">Rola:</span>
-              <p className="text-white font-medium">{user.role_description}</p>
+              <p className="text-white font-medium">{user.full_name || 'Brak imienia'}</p>
+              <p className="text-sm text-gray-400">{user.email}</p>
             </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm">
-              {error}
+        {/* Warning */}
+        <div className="mb-6 p-4 bg-red-500/20 border border-red-500/30 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-red-400 font-medium mb-2">Uwaga!</h3>
+              <p className="text-red-300 text-sm">
+                Ta akcja jest nieodwracalna. Użytkownik zostanie trwale usunięty z systemu wraz ze wszystkimi danymi.
+              </p>
             </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Aby potwierdzić usunięcie, wpisz dokładnie:
-            </label>
-            <div className="p-3 bg-gray-700/50 rounded-lg mb-3">
-              <code className="text-red-400 font-mono text-sm">{expectedText}</code>
-            </div>
-            <input
-              type="text"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-red-500"
-              placeholder="Wpisz tekst potwierdzenia..."
-              disabled={loading}
-            />
           </div>
+        </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-              disabled={loading}
-            >
-              Anuluj
-            </button>
-            <button
-              type="submit"
-              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors ${
-                isConfirmValid
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-              }`}
-              disabled={loading || !isConfirmValid}
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Usuwanie...
-                </div>
-              ) : (
-                'Usuń użytkownika'
-              )}
-            </button>
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            {error}
           </div>
-        </form>
+        )}
+
+        {/* Confirmation */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            Wpisz <span className="text-red-400 font-bold">USUŃ</span> aby potwierdzić:
+          </label>
+          <input
+            type="text"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-red-500"
+            placeholder="USUŃ"
+          />
+        </div>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+          >
+            Anuluj
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={loading || confirmText !== 'USUŃ'}
+            className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            {loading ? 'Usuwanie...' : 'Usuń użytkownika'}
+          </button>
+        </div>
       </div>
     </div>
   )

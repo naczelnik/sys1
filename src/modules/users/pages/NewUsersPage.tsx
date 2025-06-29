@@ -10,7 +10,8 @@ import {
   Shield, 
   User as UserIcon,
   Clock,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react'
 import { useNewUserStore } from '@/store/newUserStore'
 import { useAuthStore } from '@/store/authStore'
@@ -27,11 +28,13 @@ export default function NewUsersPage() {
     fetchUsers, 
     impersonatedUser,
     startImpersonation,
+    stopImpersonation,
     canDeleteUser,
     isAdmin,
     isSuperAdmin
   } = useNewUserStore()
-  const { user: currentUser } = useAuthStore()
+  
+  const { user: currentUser, isSuperAdmin: authIsSuperAdmin, isAdmin: authIsAdmin } = useAuthStore()
   
   const [searchTerm, setSearchTerm] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -40,25 +43,38 @@ export default function NewUsersPage() {
   const [deletePermissions, setDeletePermissions] = useState<Record<string, boolean>>({})
   const [userIsAdmin, setUserIsAdmin] = useState(false)
   const [userIsSuperAdmin, setUserIsSuperAdmin] = useState(false)
+  const [permissionError, setPermissionError] = useState('')
 
   useEffect(() => {
-    console.log('🔄 NewUsersPage mounted, fetching users...')
-    fetchUsers()
+    console.log('🔄 NewUsersPage mounted')
+    console.log('👤 Current user:', currentUser?.email)
+    console.log('🔐 Auth Super Admin:', authIsSuperAdmin())
+    console.log('🔐 Auth Admin:', authIsAdmin())
     
-    // Sprawdź uprawnienia użytkownika
-    const checkPermissions = async () => {
-      const adminStatus = await isAdmin()
-      const superAdminStatus = await isSuperAdmin()
-      setUserIsAdmin(adminStatus)
-      setUserIsSuperAdmin(superAdminStatus)
+    // Sprawdź uprawnienia z authStore
+    const isSuperAdminAuth = authIsSuperAdmin()
+    const isAdminAuth = authIsAdmin()
+    
+    console.log('✅ Setting permissions - Super Admin:', isSuperAdminAuth, 'Admin:', isAdminAuth)
+    
+    setUserIsSuperAdmin(isSuperAdminAuth)
+    setUserIsAdmin(isAdminAuth)
+    
+    // Jeśli użytkownik ma uprawnienia, załaduj dane
+    if (isSuperAdminAuth || isAdminAuth) {
+      console.log('✅ User has permissions, fetching users...')
+      fetchUsers()
+    } else {
+      console.log('❌ User does not have permissions')
+      setPermissionError('Brak uprawnień do zarządzania użytkownikami')
     }
-    
-    checkPermissions()
-  }, [fetchUsers, isAdmin, isSuperAdmin])
+  }, [currentUser, authIsSuperAdmin, authIsAdmin, fetchUsers])
 
   // Sprawdź uprawnienia do usuwania dla każdego użytkownika
   useEffect(() => {
     const checkDeletePermissions = async () => {
+      if (!userIsSuperAdmin && !userIsAdmin) return
+      
       const permissions: Record<string, boolean> = {}
       
       for (const user of users) {
@@ -75,10 +91,33 @@ export default function NewUsersPage() {
       setDeletePermissions(permissions)
     }
 
-    if (users.length > 0 && currentUser) {
+    if (users.length > 0 && currentUser && (userIsSuperAdmin || userIsAdmin)) {
       checkDeletePermissions()
     }
-  }, [users, currentUser?.id, canDeleteUser])
+  }, [users, currentUser?.id, canDeleteUser, userIsSuperAdmin, userIsAdmin])
+
+  // Jeśli brak uprawnień, pokaż komunikat
+  if (!userIsSuperAdmin && !userIsAdmin) {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Brak uprawnień</h2>
+          <p className="text-gray-400 text-center mb-4">
+            Nie masz uprawnień do zarządzania użytkownikami.
+          </p>
+          <div className="text-sm text-gray-500 bg-gray-800 p-4 rounded-lg">
+            <p><strong>Debug info:</strong></p>
+            <p>Email: {currentUser?.email}</p>
+            <p>Super Admin: {authIsSuperAdmin() ? 'TAK' : 'NIE'}</p>
+            <p>Admin: {authIsAdmin() ? 'TAK' : 'NIE'}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const filteredUsers = users.filter(user =>
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -192,12 +231,17 @@ export default function NewUsersPage() {
   return (
     <div className="p-6">
       {/* Impersonation Banner */}
-      {impersonatedUser && <ImpersonationBanner />}
+      {impersonatedUser && (
+        <ImpersonationBanner 
+          user={impersonatedUser} 
+          onStop={stopImpersonation}
+        />
+      )}
 
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-2">Zarządzanie użytkownikami</h1>
-        <p className="text-gray-400">Nowy system zarządzania użytkownikami</p>
+        <p className="text-gray-400">Panel administracyjny - pełne uprawnienia</p>
       </div>
 
       {/* Actions Bar */}
@@ -225,7 +269,7 @@ export default function NewUsersPage() {
             </div>
           )}
         </div>
-        {userIsAdmin && (
+        {(userIsAdmin || userIsSuperAdmin) && (
           <button
             onClick={() => setShowAddModal(true)}
             className="btn-primary flex items-center gap-2"
@@ -323,7 +367,7 @@ export default function NewUsersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end gap-2">
-                        {userIsAdmin && (
+                        {(userIsAdmin || userIsSuperAdmin) && (
                           <>
                             <button
                               onClick={() => handleImpersonate(user)}
@@ -382,7 +426,7 @@ export default function NewUsersPage() {
             <p className="text-gray-500 mb-4">
               {searchTerm ? 'Nie znaleziono użytkowników pasujących do wyszukiwania' : 'Dodaj pierwszego użytkownika'}
             </p>
-            {!searchTerm && userIsAdmin && (
+            {!searchTerm && (userIsAdmin || userIsSuperAdmin) && (
               <button
                 onClick={() => setShowAddModal(true)}
                 className="btn-primary"

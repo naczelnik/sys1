@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useAuthStore } from '../../../store/authStore'
+import { useAuthStore } from '../store/authStore'
 import { 
   Users, 
   TrendingUp, 
@@ -13,11 +13,11 @@ import {
   MousePointer
 } from 'lucide-react'
 
-export default function DashboardPage() {
+export default function Dashboard() {
   const { user } = useAuthStore()
 
   useEffect(() => {
-    console.log('📊 DashboardPage loaded for user:', user?.email)
+    console.log('📊 Dashboard loaded for user:', user?.email)
   }, [user])
 
   const stats = [
