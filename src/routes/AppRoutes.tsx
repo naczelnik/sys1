@@ -3,7 +3,6 @@ import Layout from '../components/layout/Layout'
 import Dashboard from '../pages/Dashboard'
 import Flows from '../pages/Flows'
 import Funnels from '../pages/Funnels'
-import Integrations from '../pages/Integrations'
 import Templates from '../pages/Templates'
 import Analytics from '../pages/Analytics'
 import Settings from '../pages/Settings'
@@ -16,7 +15,6 @@ export default function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="flows" element={<Flows />} />
         <Route path="funnels" element={<Funnels />} />
-        <Route path="integrations" element={<Integrations />} />
         <Route path="templates" element={<Templates />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
