@@ -7,8 +7,7 @@ import {
   Puzzle, 
   FileText, 
   Settings,
-  Users,
-  Shield
+  Users
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -90,16 +89,6 @@ export default function Sidebar() {
             )}
           </nav>
         </div>
-        
-        {/* Super Admin Badge */}
-        {isUserSuperAdmin && (
-          <div className="flex-shrink-0 p-4">
-            <div className="flex items-center px-3 py-2 bg-red-900 bg-opacity-50 rounded-lg">
-              <Shield className="w-4 h-4 text-red-400 mr-2" />
-              <span className="text-red-300 text-sm font-medium">Super Admin</span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

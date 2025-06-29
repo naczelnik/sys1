@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuthStore } from '@/store/authStore'
+import { supabase } from '@/lib/supabase'
 
 interface AccountInfo {
   accountType: string
@@ -17,7 +18,7 @@ interface UseAccountInfoReturn {
 }
 
 export function useAccountInfo(): UseAccountInfoReturn {
-  const { user, isSuperAdmin, isAdmin } = useAuthStore()
+  const { user, isSuperAdmin } = useAuthStore()
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +32,7 @@ export function useAccountInfo(): UseAccountInfoReturn {
 
       console.log('🔍 Fetching account info for user:', user.id)
 
-      // NATYCHMIASTOWE ROZWIĄZANIE - SUPER ADMIN MA DOŻYWOTNI DOSTĘP
+      // Super Admin ma dożywotni dostęp
       if (isSuperAdmin) {
         console.log('👑 User is Super Admin - setting lifetime access')
         setAccountInfo({
@@ -44,8 +45,54 @@ export function useAccountInfo(): UseAccountInfoReturn {
         return
       }
 
-      // UPROSZCZONE - WSZYSCY INNI MAJĄ STANDARDOWE KONTO
-      console.log('ℹ️ Standard user - setting standard account')
+      // Pobierz informacje o koncie z bazy danych
+      const { data, error: dbError } = await supabase
+        .rpc('get_user_account_info', { user_uuid: user.id })
+
+      if (dbError) {
+        console.error('❌ Database error:', dbError)
+        // Fallback dla zwykłych użytkowników
+        setAccountInfo({
+          accountType: 'standard',
+          validUntil: null,
+          isLifetimeAccess: false,
+          isExpired: false,
+          daysRemaining: null
+        })
+        return
+      }
+
+      if (data) {
+        console.log('✅ Account info fetched:', data)
+        
+        const now = new Date()
+        const expiryDate = data.account_expires_at ? new Date(data.account_expires_at) : null
+        const isExpired = expiryDate ? now > expiryDate : false
+        const daysRemaining = expiryDate ? Math.max(0, Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : null
+
+        setAccountInfo({
+          accountType: data.role_name || 'standard',
+          validUntil: data.account_expires_at,
+          isLifetimeAccess: data.is_lifetime_access || false,
+          isExpired,
+          daysRemaining
+        })
+      } else {
+        // Fallback dla nowych użytkowników
+        setAccountInfo({
+          accountType: 'standard',
+          validUntil: null,
+          isLifetimeAccess: false,
+          isExpired: false,
+          daysRemaining: null
+        })
+      }
+
+    } catch (err: any) {
+      console.error('🚨 Account info fetch failed:', err)
+      setError(err.message || 'Błąd pobierania informacji o koncie')
+      
+      // Fallback
       setAccountInfo({
         accountType: 'standard',
         validUntil: null,
@@ -53,10 +100,6 @@ export function useAccountInfo(): UseAccountInfoReturn {
         isExpired: false,
         daysRemaining: null
       })
-
-    } catch (err: any) {
-      console.error('🚨 Account info fetch failed:', err)
-      setError(err.message || 'Błąd pobierania informacji o koncie')
     } finally {
       setLoading(false)
     }
@@ -66,7 +109,7 @@ export function useAccountInfo(): UseAccountInfoReturn {
     await fetchAccountInfo()
   }
 
-  // Pobierz informacje o koncie przy inicjalizacji i zmianie użytkownika/roli
+  // Pobierz informacje o koncie przy inicjalizacji i zmianie użytkownika
   useEffect(() => {
     if (user?.id) {
       fetchAccountInfo()
@@ -74,7 +117,7 @@ export function useAccountInfo(): UseAccountInfoReturn {
       setAccountInfo(null)
       setError(null)
     }
-  }, [user?.id, isSuperAdmin, isAdmin])
+  }, [user?.id, isSuperAdmin])
 
   return {
     accountInfo,
